@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# set -euo pipefail
 
 readonly THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 readonly BASE_DIR="${THIS_DIR}/.."
 readonly DATA_DIR="${BASE_DIR}/data"
 readonly PCM_LOG="${DATA_DIR}/pcm-continuous.log"
-readonly PCM_DIR="${BASE_DIR}/pcm"
-readonly PCM_FILE="${PCM_DIR}/pcm.x"
+readonly PCM_DIR="${BASE_DIR}/../pcm"
+readonly PCM_FILE="${PCM_DIR}/build/bin/pcm"
 
 readonly BUILD_DIR='/tmp/python-build'
 
