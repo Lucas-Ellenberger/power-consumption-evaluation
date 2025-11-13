@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# set -euo pipefail
+set -euo pipefail
 
 readonly THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 readonly BASE_DIR="${THIS_DIR}/.."
@@ -12,20 +12,22 @@ readonly BUILD_DIR='/tmp/python-build'
 
 pcm_pid=0
 
-function start_pcm() {
-    echo "Starting PCM monitoring..."
+function init() {
+    echo 'Starting PCM monitoring.'
     sudo "${PCM_FILE}" --power 1 | tee "${PCM_LOG}" &
     pcm_pid=$!
+    swapoff -a
 }
 
-function stop_pcm() {
+function cleanup() {
     echo "Stopping PCM (PID ${1:-$pcm_pid})..."
     sudo kill "${1:-$pcm_pid}" 2>/dev/null || true
+    swapon -a
 }
 
 function interrupt() {
-    echo "Interrupted. Stopping PCM..."
-    stop_pcm "$pcm_pid"
+    echo 'Interrupted. Stopping PCM.'
+    cleanup "$pcm_pid"
     exit 1
 }
 
@@ -35,9 +37,14 @@ function workload() {
 
     echo "Running workload iteration ${iter} with ${python_zip}"
 
+    cd "${THIS_DIR}"
+
     # Clear build directory.
     rm -rf "${BUILD_DIR}"
     mkdir -p "${BUILD_DIR}"
+
+    # Clear system cache.
+    echo 3 | sudo tee '/proc/sys/vm/drop_caches'
 
     # Extract source file.
     tar -xJf "${python_zip}" -C "${BUILD_DIR}"
@@ -59,7 +66,7 @@ function main() {
 
     mkdir -p "${DATA_DIR}"
 
-    start_pcm
+    init
     sleep 2
     trap interrupt SIGINT
 
@@ -68,9 +75,10 @@ function main() {
         workload "${zipfile}" "${i}"
     done
 
-    stop_pcm "$pcm_pid"
+    cleanup "$pcm_pid"
 
     echo "Experiment complete. PCM data: ${PCM_LOG}"
+    exit 0
 }
 
 [[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"
