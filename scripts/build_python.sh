@@ -4,7 +4,7 @@ set -euo pipefail
 readonly THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 readonly BASE_DIR="${THIS_DIR}/.."
 readonly DATA_DIR="${BASE_DIR}/data"
-readonly PCM_LOG="${DATA_DIR}/pcm-continuous.log"
+readonly PCM_CSV="${DATA_DIR}/pcm-continuous.csv"
 readonly PCM_DIR="${BASE_DIR}/../pcm"
 readonly PCM_FILE="${PCM_DIR}/build/bin/pcm"
 
@@ -14,7 +14,7 @@ pcm_pid=0
 
 function init() {
     echo 'Starting PCM monitoring.'
-    sudo "${PCM_FILE}" --power 1 | tee "${PCM_LOG}" &
+    sudo "${PCM_FILE}" -csv | tee "${PCM_CSV}" &
     pcm_pid=$!
     swapoff -a
 }
@@ -37,7 +37,7 @@ function workload() {
 
     echo "Running workload iteration ${iter} with ${python_zip}"
 
-    cd "${THIS_DIR}"
+    cd "${BASE_DIR}"
 
     # Clear build directory.
     rm -rf "${BUILD_DIR}"
@@ -77,7 +77,7 @@ function main() {
 
     cleanup "$pcm_pid"
 
-    echo "Experiment complete. PCM data: ${PCM_LOG}"
+    echo "Experiment complete. PCM data: ${PCM_CSV}"
     exit 0
 }
 
