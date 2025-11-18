@@ -4,13 +4,14 @@ set -euo pipefail
 readonly THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 readonly BASE_DIR="${THIS_DIR}/.."
 readonly DATA_DIR="${BASE_DIR}/data"
-readonly PCM_CSV="${DATA_DIR}/pcm-build-py.csv"
+readonly PCM_CSV="${DATA_DIR}/pcm-io-500.csv"
 readonly PCM_DIR="${BASE_DIR}/../pcm"
 readonly PCM_FILE="${PCM_DIR}/build/bin/pcm"
-
-readonly BUILD_DIR='/tmp/python-build'
+readonly IO_500_DIR="${BASE_DIR}/../io500"
+readonly THIS_DIR_REL_FROM_IO_500='../power-consumption-evaluation'
 
 pcm_pid=0
+io500_pid=0
 
 function init() {
     echo 'Starting PCM monitoring.'
@@ -22,58 +23,45 @@ function init() {
 function cleanup() {
     echo "Stopping PCM (PID ${1:-$pcm_pid})..."
     sudo kill "${1:-$pcm_pid}" 2>/dev/null || true
+    sudo kill "${1:-$io500_pid}" 2>/dev/null || true
     swapon -a
 }
 
 function interrupt() {
     echo 'Interrupted. Stopping PCM.'
-    cleanup "$pcm_pid"
+    cleanup
     exit 1
 }
 
 function workload() {
-    local python_zip="$1"
-    local iter="$2"
+    local io500_ini="$1"
 
-    echo "Running workload iteration ${iter} with ${python_zip}"
-
-    cd "${BASE_DIR}"
-
-    # Clear build directory.
-    rm -rf "${BUILD_DIR}"
-    mkdir -p "${BUILD_DIR}"
+    cd "${IO_500_DIR}"
 
     # Clear system cache.
     echo 3 | sudo tee '/proc/sys/vm/drop_caches'
 
-    # Extract source file.
-    tar -xJf "${python_zip}" -C "${BUILD_DIR}"
-    cd "${BUILD_DIR}"/*/
-
-    # Configure and build Python.
-    ./configure > "${DATA_DIR}/configure_${iter}.log" 2>&1
-    make -j 7 > "${DATA_DIR}/make_${iter}.log" 2>&1
+    ./io500 "${THIS_DIR_REL_FROM_IO_500}/${io500_ini}"
+    io500_pid=$!
 }
 
 function main() {
-    if [[ $# -ne 2 ]]; then
-        echo "USAGE: $0 <num iterations> <python zip path>"
+    if [[ $# -ne 1 ]]; then
+        echo "USAGE: $0 <io500 ini>"
         exit 1
     fi
 
-    local num_iter="$1"
-    local zipfile="$2"
+    local io500_ini="$1"
 
     mkdir -p "${DATA_DIR}"
 
     init
     sleep 2
     trap interrupt SIGINT
+    trap cleanup EXIT
 
-    for i in $(seq 1 "${num_iter}"); do
-        echo "=== Iteration ${i}/${num_iter} ==="
-        workload "${zipfile}" "${i}"
-    done
+    echo "=== Starting io500 workload  ==="
+    workload "${io500_ini}"
 
     cleanup "$pcm_pid"
 
