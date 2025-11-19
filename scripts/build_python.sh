@@ -33,7 +33,6 @@ function interrupt() {
 
 function workload() {
     local python_zip="$1"
-    local iter="$2"
 
     cd "${BASE_DIR}"
 
@@ -49,8 +48,8 @@ function workload() {
     cd "${BUILD_DIR}"/*/
 
     # Configure and build Python.
-    ./configure > "${DATA_DIR}/configure_${iter}.log" 2>&1
-    make -j 7 > "${DATA_DIR}/make_${iter}.log" 2>&1
+    ./configure
+    make -j 7
 }
 
 function main() {
@@ -69,8 +68,8 @@ function main() {
     trap interrupt SIGINT
 
     for i in $(seq 1 "${num_iter}"); do
-        echo "=== Iteration ${i}/${num_iter} ==="
-        workload "${zipfile}" "${i}"
+        echo "=== Build Python Iteration ${i}/${num_iter} ==="
+        workload "${zipfile}"
     done
 
     cleanup "$pcm_pid"

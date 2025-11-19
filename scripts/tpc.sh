@@ -4,27 +4,31 @@ set -euo pipefail
 readonly THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 readonly BASE_DIR="${THIS_DIR}/.."
 readonly DATA_DIR="${BASE_DIR}/data"
-readonly PCM_CSV="${DATA_DIR}/pcm-io-500.csv"
+readonly PCM_CSV="${DATA_DIR}/pcm-tpc.csv"
 readonly PCM_DIR="${BASE_DIR}/../pcm"
 readonly PCM_FILE="${PCM_DIR}/build/bin/pcm"
-readonly IO_500_DIR="${BASE_DIR}/../io500"
-readonly IO_500_DATA_DIR="${IO_500_DIR}/datafiles"
-readonly THIS_DIR_REL_FROM_IO_500='../power-consumption-evaluation'
+readonly TPC_DIR="${BASE_DIR}/../benchbase/target/benchbase-postgres"
+readonly TPC_DATA_DIR="${TPC_DIR}/datafiles"
 
 pcm_pid=0
-io500_pid=0
 
 function init() {
     echo 'Starting PCM monitoring.'
     sudo bash -c "\"${PCM_FILE}\" -csv" > "${PCM_CSV}" &
     pcm_pid=$!
+
+    # Minimize caching effects between runs.
     swapoff -a
+
+    # Start postgresql server.
+    sudo systemctl start postgresql
 }
 
 function cleanup() {
     echo "Stopping PCM (PID ${1:-$pcm_pid})..."
     sudo kill "${1:-$pcm_pid}" 2>/dev/null || true
-    sudo kill "${1:-$io500_pid}" 2>/dev/null || true
+
+    # Turn swapping back on.
     swapon -a
 }
 
@@ -35,28 +39,21 @@ function interrupt() {
 }
 
 function workload() {
-    local io500_ini="$1"
-
-    cd "${IO_500_DIR}"
+    cd "${TPC_DIR}"
 
     # Clear system cache.
     echo 3 | sudo tee '/proc/sys/vm/drop_caches'
 
-    ./io500 "${THIS_DIR_REL_FROM_IO_500}/${io500_ini}"
-    io500_pid=$!
-
-    # Clean up written datafiles.
-    rm -rf "${IO_500_DATA_DIR}"/*
+    java -jar benchbase.jar -b tpcc -c config/postgres/sample_tpcc_config.xml --create=true --load=true --execute=true
 }
 
 function main() {
-    if [[ $# -ne 2 ]]; then
-        echo "USAGE: $0 <num iterations> <io500 ini>"
+    if [[ $# -ne 1 ]]; then
+        echo "USAGE: $0 <num iterations>"
         exit 1
     fi
 
     local num_iter="$1"
-    local io500_ini="$2"
 
     mkdir -p "${DATA_DIR}"
 
@@ -66,8 +63,8 @@ function main() {
     trap cleanup EXIT
 
     for i in $(seq 1 "${num_iter}"); do
-        echo "=== IO 500 Iteration ${i}/${num_iter} ==="
-        workload "${io500_ini}"
+        echo "=== TPC Iteration ${i}/${num_iter} ==="
+        workload
     done
 
     cleanup "$pcm_pid"
