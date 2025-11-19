@@ -8,6 +8,7 @@ readonly PCM_CSV="${DATA_DIR}/pcm-io-500.csv"
 readonly PCM_DIR="${BASE_DIR}/../pcm"
 readonly PCM_FILE="${PCM_DIR}/build/bin/pcm"
 readonly IO_500_DIR="${BASE_DIR}/../io500"
+readonly IO_500_DATA_DIR="${IO_500_DIR}/datafiles"
 readonly THIS_DIR_REL_FROM_IO_500='../power-consumption-evaluation'
 
 pcm_pid=0
@@ -35,6 +36,7 @@ function interrupt() {
 
 function workload() {
     local io500_ini="$1"
+    local iter="$2"
 
     cd "${IO_500_DIR}"
 
@@ -43,15 +45,19 @@ function workload() {
 
     ./io500 "${THIS_DIR_REL_FROM_IO_500}/${io500_ini}"
     io500_pid=$!
+
+    # Clean up written datafiles.
+    rm -rf "${IO_500_DATA_DIR}"/*
 }
 
 function main() {
-    if [[ $# -ne 1 ]]; then
-        echo "USAGE: $0 <io500 ini>"
+    if [[ $# -ne 2 ]]; then
+        echo "USAGE: $0 <num iterations> <io500 ini>"
         exit 1
     fi
 
-    local io500_ini="$1"
+    local num_iter="$1"
+    local io500_ini="$2"
 
     mkdir -p "${DATA_DIR}"
 
@@ -60,8 +66,10 @@ function main() {
     trap interrupt SIGINT
     trap cleanup EXIT
 
-    echo "=== Starting io500 workload  ==="
-    workload "${io500_ini}"
+    for i in $(seq 1 "${num_iter}"); do
+        echo "=== Iteration ${i}/${num_iter} ==="
+        workload "${io500_ini}" "${i}"
+    done
 
     cleanup "$pcm_pid"
 

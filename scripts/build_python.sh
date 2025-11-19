@@ -35,8 +35,6 @@ function workload() {
     local python_zip="$1"
     local iter="$2"
 
-    echo "Running workload iteration ${iter} with ${python_zip}"
-
     cd "${BASE_DIR}"
 
     # Clear build directory.
