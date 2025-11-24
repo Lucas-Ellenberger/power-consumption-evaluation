@@ -4,35 +4,27 @@ set -euo pipefail
 readonly THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 readonly BASE_DIR="${THIS_DIR}/.."
 readonly DATA_DIR="${BASE_DIR}/data"
-readonly PCM_CSV="${DATA_DIR}/pcm-build-py.csv"
-readonly PCM_DIR="${BASE_DIR}/../pcm"
-readonly PCM_FILE="${PCM_DIR}/build/bin/pcm"
+readonly CONFIGURE_DIR="${DATA_DIR}/configure"
+readonly MAKE_DIR="${DATA_DIR}/make"
 
 readonly BUILD_DIR='/tmp/python-build'
 
-pcm_pid=0
-
 function init() {
-    echo 'Starting PCM monitoring.'
-    sudo bash -c "\"${PCM_FILE}\" -csv" > "${PCM_CSV}" &
-    pcm_pid=$!
     swapoff -a
 }
 
 function cleanup() {
-    echo "Stopping PCM (PID ${1:-$pcm_pid})..."
-    sudo kill "${1:-$pcm_pid}" 2>/dev/null || true
     swapon -a
 }
 
 function interrupt() {
-    echo 'Interrupted. Stopping PCM.'
-    cleanup "$pcm_pid"
+    cleanup
     exit 1
 }
 
 function workload() {
-    local python_zip="$1"
+    local iter="$1"
+    local python_zip="$2"
 
     cd "${BASE_DIR}"
 
@@ -48,8 +40,8 @@ function workload() {
     cd "${BUILD_DIR}"/*/
 
     # Configure and build Python.
-    ./configure
-    make -j 7
+    ./configure > "${CONFIGURE_DIR}/configure_${iter}.log" 2>&1
+    make -j 7 > "${MAKE_DIR}/make_${iter}.log" 2>&1
 }
 
 function main() {
@@ -62,6 +54,8 @@ function main() {
     local zipfile="$2"
 
     mkdir -p "${DATA_DIR}"
+    mkdir -p "${CONFIGURE_DIR}"
+    mkdir -p "${MAKE_DIR}"
 
     init
     sleep 2
@@ -69,12 +63,12 @@ function main() {
 
     for i in $(seq 1 "${num_iter}"); do
         echo "=== Build Python Iteration ${i}/${num_iter} ==="
-        workload "${zipfile}"
+        workload "${i}" "${zipfile}"
     done
 
-    cleanup "$pcm_pid"
+    cleanup
 
-    echo "Experiment complete. PCM data: ${PCM_CSV}"
+    echo "Experiment complete."
     exit 0
 }
 

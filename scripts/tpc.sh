@@ -10,13 +10,7 @@ readonly PCM_FILE="${PCM_DIR}/build/bin/pcm"
 readonly TPC_DIR="${BASE_DIR}/../benchbase/target/benchbase-postgres"
 readonly TPC_DATA_DIR="${TPC_DIR}/datafiles"
 
-pcm_pid=0
-
 function init() {
-    echo 'Starting PCM monitoring.'
-    sudo bash -c "\"${PCM_FILE}\" -csv" > "${PCM_CSV}" &
-    pcm_pid=$!
-
     # Minimize caching effects between runs.
     swapoff -a
 
@@ -25,9 +19,6 @@ function init() {
 }
 
 function cleanup() {
-    echo "Stopping PCM (PID ${1:-$pcm_pid})..."
-    sudo kill "${1:-$pcm_pid}" 2>/dev/null || true
-
     # Turn swapping back on.
     swapon -a
 }
@@ -67,7 +58,7 @@ function main() {
         workload
     done
 
-    cleanup "$pcm_pid"
+    cleanup
 
     echo "Experiment complete. PCM data: ${PCM_CSV}"
     exit 0
